@@ -355,7 +355,7 @@ users.get("/verifyPayment", async (req, res) => {
         tranEmailApi.sendTransacEmail({
           sender,
           to: receiver,
-          subject: "Booking Confirmation - Gentle Reminder",
+          subject: "Booking Confirmation",
           textContent: `
             Dear ${user.name || "Customer"},
             
@@ -591,6 +591,40 @@ users.put("/rescheduleBooking", async (req, res) => {
     res.status(500).json({ message: "Failed to reschedule booking" });
   }
 });
+
+//Delete a booking
+users.delete("/deleteBooking", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { bookingId } = req.body;
+
+    const booking = await models.userBookings.findByPk(bookingId);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (decoded.role !== "admin" && booking.userId !== decoded.id) {
+      return res.status(403).json({
+        message: "Forbidden: Only admins can delete bookings",
+      });
+    }
+    await models.userBookings.destroy({
+      where: {
+        id: bookingId,
+      },
+    });
+
+    res.status(200).json({ message: "Booking deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete booking" });
+  }
+});
+
 
 //Get Booking details API
 users.get("/bookingDetails/:bookingId", async (req, res) => {
