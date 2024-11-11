@@ -4,22 +4,7 @@ const { DataTypes } = require("sequelize");
 const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class userss extends Model {
-    // /**
-    //  * Helper method for defining associations.
-    //  * This method is not a part of DataTypes lifecycle.
-    //  * The `models/index` file will call this method automatically.
-    //  */
-    // static associate(models) {
-    //   curriculumActuals.belongsTo(models.curriculumReviewMaster, {
-    //     foreignKey: 'curriculumId', // 'action' is the foreign key column
-    //     as: 'CurriculumId', // You can customize the alias as needed
-    //     onDelete: 'CASCADE',
-    //   });
-    //   curriculumActuals.belongsTo(models.curriculumActionMaster, {
-    //     foreignKey: 'curriculumActionMasterId', // 'action' is the foreign key column
-    //     as: 'CurriculumActionMasterId', // You can customize the alias as needed
-    //   });
-    // }
+
   }
   userss.init(
     {

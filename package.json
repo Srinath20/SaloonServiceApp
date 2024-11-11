@@ -19,8 +19,6 @@
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.4",
     "nodemon": "^3.1.7",
-    "pg": "^8.13.1",
-    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.5",
     "sequelize-cli": "^6.6.2",
     "sib-api-v3-sdk": "^8.5.0",
