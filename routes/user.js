@@ -38,6 +38,7 @@ users.post("/signUp", async (req, res) => {
   }
 });
 
+
 // Login API - done
 users.post("/login", async (req, res) => {
   try {
@@ -59,10 +60,9 @@ users.post("/login", async (req, res) => {
     );
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",//suitable for local testing since secure: true requires HTTPS, which isn't commonly set up in local environments.
       sameSite: "strict",
     });
-    console.log(token);
     res.status(200).json({ message: "Login successful", token, role: user.role });
   } catch (err) {
     res.status(500).json({ message: "Failed to Log In" });
@@ -109,7 +109,7 @@ users.get("/getAllServices", async (req, res) => {
       services = await models.services.findAll({
         where: {
           name: {
-            [Op.iLike]: `%${search}%`,
+            [Op.like]: `%${search}%`,
           },
         },
       });
@@ -252,7 +252,19 @@ users.post("/bookService", async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { bookingFromDate, serviceId, staffId } = req.body;
+    const { bookingFromDate, serviceId } = req.body;
+
+    const staffService = await models.staffservices.findOne({
+      where: {
+        serviceId: serviceId,
+      },
+    });
+
+    if (!staffService) {
+      return res.status(404).json({ message: "No staff found for the selected service" });
+    }
+
+    const assignedStaffId = staffService.staffId;
 
     const user = await models.users.findByPk(decoded.id);
     if (!user) {
@@ -264,11 +276,12 @@ users.post("/bookService", async (req, res) => {
       return res.status(404).json({ message: "Service not found" });
     }
 
-    const staff = await models.users.findByPk(staffId);
+    const staff = await models.users.findByPk(assignedStaffId);
     if (!staff || staff.role !== "staff") {
       return res.status(400).json({ message: "Invalid staff member" });
     }
-
+    const staffName = staff.name;
+    const staffId = staff.id;
     const serviceHours = service.hours;
     const bookingToDate = new Date(bookingFromDate);
     bookingToDate.setHours(bookingToDate.getHours() + serviceHours);
@@ -297,7 +310,7 @@ users.post("/bookService", async (req, res) => {
       mode: "payment",
       success_url: `http://localhost:3000/api/verifyPayment?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: "http://localhost:3000/cancel",
-      metadata: { userId: decoded.id, serviceId, staffId, bookingFromDate },
+      metadata: { userId: decoded.id, serviceId, staffId, staffName, bookingFromDate },
     });
 
     res.status(200).json({ url: session.url });
@@ -319,7 +332,7 @@ users.get("/verifyPayment", async (req, res) => {
     console.log("Retrieved Stripe session:", session);
 
     if (session.payment_status === "paid") {
-      const { userId, serviceId, staffId, bookingFromDate } = session.metadata;
+      const { userId, serviceId, staffId, staffName, bookingFromDate } = session.metadata;
 
       const service = await models.services.findByPk(serviceId);
       if (!service) {
@@ -336,8 +349,6 @@ users.get("/verifyPayment", async (req, res) => {
         bookingFromDate,
         bookingToDate,
       });
-
-      console.log("Booking created successfully:", booking);
 
       const user = await models.users.findByPk(userId);
       if (user && user.email) {
@@ -362,7 +373,7 @@ users.get("/verifyPayment", async (req, res) => {
             This is a gentle reminder for your upcoming appointment. Here are your booking details:
             
             Service: ${service.name}
-            Staff Assigned: ${staffId}
+            Staff Assigned: ${staffName}
             Start Time: ${bookingFromDate}
             End Time: ${bookingToDate}
             
@@ -377,7 +388,7 @@ users.get("/verifyPayment", async (req, res) => {
             <p>This is a gentle reminder for your upcoming appointment. Here are your booking details:</p>
             <ul>
               <li><strong>Service:</strong> ${service.name}</li>
-              <li><strong>Staff Assigned:</strong> ${staffId}</li>
+              <li><strong>Staff Assigned:</strong> ${staffName}</li>
               <li><strong>Start Time:</strong> ${bookingFromDate}</li>
               <li><strong>End Time:</strong> ${bookingToDate}</li>
             </ul>
@@ -393,7 +404,6 @@ users.get("/verifyPayment", async (req, res) => {
           });
       }
 
-      // Respond with a success message
       return res.status(200).send(`
         <h2>Booking confirmed successfully!</h2>
         <p>Booking Details:</p>
@@ -500,7 +510,8 @@ users.put("/rescheduleBooking", async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const { bookingId, newFromDate, newStaffId } = req.body;
+    const { bookingId, newFromDate } = req.body;
+
 
     const booking = await models.userBookings.findByPk(bookingId);
     if (!booking) {
@@ -517,13 +528,12 @@ users.put("/rescheduleBooking", async (req, res) => {
     if (!service) {
       return res.status(404).json({ message: "Service not found" });
     }
+
     const newToDate = new Date(newFromDate);
     newToDate.setHours(newToDate.getHours() + service.hours);
 
-    const staff = await models.users.findByPk(newStaffId);
-    if (!staff || staff.role !== "staff") {
-      return res.status(400).json({ message: "Invalid staff member" });
-    }
+    const staffId = booking.staffId;
+
 
     const conflictingService = await models.services.findOne({
       where: {
@@ -549,9 +559,10 @@ users.put("/rescheduleBooking", async (req, res) => {
         .json({ message: "Service is unavailable during the selected dates" });
     }
 
+
     const conflictingBooking = await models.userBookings.findOne({
       where: {
-        staffId: newStaffId,
+        staffId: staffId,
         [Op.or]: [
           {
             bookingFromDate: {
@@ -577,7 +588,6 @@ users.put("/rescheduleBooking", async (req, res) => {
       {
         bookingFromDate: newFromDate,
         bookingToDate: newToDate,
-        staffId: newStaffId,
       },
       {
         where: {
@@ -588,11 +598,12 @@ users.put("/rescheduleBooking", async (req, res) => {
 
     res.status(200).json({ message: "Booking rescheduled successfully" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Failed to reschedule booking" });
   }
 });
 
-//Delete a booking
+
 users.delete("/deleteBooking", async (req, res) => {
   try {
     const token = req.cookies.token;
@@ -829,5 +840,32 @@ users.delete("/deleteService/:serviceId", async (req, res) => {
     res.status(500).json({ message: "Failed to delete service" });
   }
 });
+
+users.get("/userBookings", async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const bookings = await models.userBookings.findAll({
+      where: { userId: decoded.id },
+      attributes: ["id", "bookingFromDate", "bookingToDate"],
+      order: [["bookingFromDate", "ASC"]],
+    });
+
+    if (bookings.length === 0) {
+      return res.status(404).json({ message: "No bookings found" });
+    }
+
+    res.status(200).json({ bookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch bookings" });
+  }
+});
+
 
 module.exports = users;

@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const routes = require("./routes");
 const { CronJob } = require('cron');
@@ -10,7 +11,6 @@ apiKey.apiKey = process.env.API_KEY;
 const tranEmailApi = new Sib.TransactionalEmailsApi();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
-require("dotenv").config();
 app.use(express.json());
 app.use("/api", routes);
 
@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
   res.status(200).json({ status: "suceess", message: "Rest API" });
 });
 
-const reminderJob = new CronJob('0 9 * * *', async () => {
+const reminderJob = new CronJob('0 9 * * *', async () => { //every day at 9am
   const reminderTimeFrame = new Date();
   reminderTimeFrame.setDate(reminderTimeFrame.getDate() + 1);
   try {
